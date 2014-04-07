@@ -48,14 +48,24 @@ func (i RepoIdentifier) HomePath() string {
 	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), fmt.Sprintf("%shome", RepoIdentifierPrefix)), string(i), "home", 0775)
 }
 
+func (i RepoIdentifier) RepositoryPathFor() string {
+	return filepath.Join(config.ContainerBasePath(), "git", string(i))
+}
+
+func (i RepoIdentifier) GitAccessPathFor(name string, write bool) string {
+	var access string
+	if write {
+		access = ".write"
+	} else {
+		access = ".read"
+	}
+	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "git"), string(i), name+access, 0775)
+}
+
 func (i RepoIdentifier) SshAccessBasePath() string {
 	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "git"), string(i), "", 0775)
 }
 
 func (i RepoIdentifier) AuthKeysPathFor() string {
 	return filepath.Join(i.HomePath(), ".ssh", "authorized_keys")
-}
-
-func (i RepoIdentifier) RepositoryPathFor() string {
-	return filepath.Join(config.ContainerBasePath(), "git", string(i))
 }

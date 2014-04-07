@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ "$GOPATH" == "" ]; then
+	echo "Must set GOPATH"
+	exit 1
+fi
+
 ORIG_GOPATH=$GOPATH
 export GOPATH=$ORIG_GOPATH:$ORIG_GOPATH/src/github.com/openshift/geard/vendor
 

@@ -89,34 +89,12 @@ func (i Identifier) UnitNameForJob() string {
 	return fmt.Sprintf("job-%s.service", i)
 }
 
-func (i Identifier) RepositoryPathFor() string {
-	return filepath.Join(config.ContainerBasePath(), "git", string(i))
-}
-
 func (i Identifier) EnvironmentPathFor() string {
 	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "env", "contents"), string(i), "")
 }
 
 func (i Identifier) NetworkLinksPathFor() string {
 	return utils.IsolateContentPath(filepath.Join(config.ContainerBasePath(), "ports", "links"), string(i), "")
-}
-
-func (i Identifier) GitAccessPathFor(f utils.Fingerprint, write bool) string {
-	var access string
-	if write {
-		access = ".write"
-	} else {
-		access = ".read"
-	}
-	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "git"), string(i), f.ToShortName()+access, 0775)
-}
-
-func (i Identifier) SshAccessBasePath() string {
-	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), "", 0775)
-}
-
-func (i Identifier) SshAccessPathFor(f utils.Fingerprint) string {
-	return utils.IsolateContentPathWithPerm(filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"), string(i), f.ToShortName(), 0775)
 }
 
 func (i Identifier) BaseHomePath() string {
