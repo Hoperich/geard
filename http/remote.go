@@ -46,17 +46,17 @@ func (h *HttpTransport) LocatorFor(value string) (transport.Locator, error) {
 	return transport.NewHostLocator(value)
 }
 
-func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j jobs.Job) (job jobs.Job, err error) {
-	if locator == transport.Local {
-		job = j
-		return
-	}
+func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j interface{}) (job jobs.Job, err error) {
 	baseUrl, errl := urlForLocator(locator)
 	if errl != nil {
 		err = errors.New("The provided host is not valid '" + locator.String() + "': " + errl.Error())
 		return
 	}
 	httpJob, errh := HttpJobFor(j)
+	if errh == jobs.ErrNoJobForRequest {
+		err = transport.ErrNotTransportable
+		return
+	}
 	if errh != nil {
 		err = errh
 		return
@@ -86,7 +86,7 @@ func urlForLocator(locator transport.Locator) (*url.URL, error) {
 	return &url.URL{Scheme: "http", Host: base}, nil
 }
 
-func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
+func HttpJobFor(job interface{}) (exc RemoteExecutable, err error) {
 	switch j := job.(type) {
 	case *cjobs.InstallContainerRequest:
 		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
@@ -113,17 +113,15 @@ func HttpJobFor(job jobs.Job) (exc RemoteExecutable, err error) {
 	default:
 		for _, ext := range extensions {
 			req, errr := ext.HttpJobFor(job)
+			if errr == jobs.ErrNoJobForRequest {
+				continue
+			}
 			if errr != nil {
 				return nil, errr
 			}
-			if req != nil {
-				exc = req
-				break
-			}
+			return req, nil
 		}
-	}
-	if exc == nil {
-		err = errors.New("The provided job cannot be sent remotely")
+		err = jobs.ErrNoJobForRequest
 	}
 	return
 }

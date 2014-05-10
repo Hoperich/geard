@@ -3,8 +3,9 @@ package transport
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/jobs"
 	"log"
+
+	"github.com/openshift/geard/jobs"
 )
 
 var ErrNotTransportable = errors.New("The specified job cannot be executed remotely")
@@ -14,20 +15,11 @@ type Transport interface {
 	// Return a locator from the given string
 	LocatorFor(string) (Locator, error)
 	// Given a locator, return a job that can be executed
-	// remotely.
-	RemoteJobFor(Locator, jobs.Job) (jobs.Job, error)
+	// remotely.  May return ErrNotTransportable or
+	// ErrNoJobForRequest
+	RemoteJobFor(Locator, interface{}) (jobs.Job, error)
 }
 
-type noTransport struct{}
-
-func (t *noTransport) LocatorFor(value string) (Locator, error) {
-	return NewHostLocator(value)
-}
-func (t *noTransport) RemoteJobFor(locator Locator, job jobs.Job) (jobs.Job, error) {
-	return job, nil
-}
-
-var emptyTransport = &noTransport{}
 var transports = make(map[string]Transport)
 
 func RegisterTransport(name string, t Transport) {

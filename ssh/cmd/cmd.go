@@ -11,8 +11,6 @@ import (
 	"path/filepath"
 
 	. "github.com/openshift/geard/cmd"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
 	sshkey "github.com/openshift/geard/pkg/ssh-public-key"
 	"github.com/openshift/geard/ssh"
 	. "github.com/openshift/geard/ssh/jobs"
@@ -80,7 +78,7 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <id> ...")
 	}
 
-	t := cmd.Flags().Lookup("transport").Value.(*transport.TransportFlag).Transport
+	t := NewTransport(cmd.Flags().Lookup("transport").Value.(*transport.TransportFlag).Transport)
 
 	// args... are locators for repositories or containers
 	ids, err := NewResourceLocators(t, ResourceTypeContainer, args...)
@@ -112,7 +110,7 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 
 	Executor{
 		On: ids,
-		Group: func(on ...Locator) jobs.Job {
+		Group: func(on ...Locator) JobRequest {
 			permissions := []KeyPermission{}
 			for i := range on {
 				permissions = append(permissions, *allPerms[on[i].Identity()])
@@ -127,7 +125,6 @@ func addSshKeys(cmd *cobra.Command, args []string) {
 		},
 		Output: os.Stdout,
 		//TODO: display partial error info
-		LocalInit: containers.InitializeData,
 		Transport: t,
 	}.StreamAndExit()
 }

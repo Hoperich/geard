@@ -21,12 +21,14 @@ func (h *HttpExtension) Routes() []http.HttpJobHandler {
 	}
 }
 
-func (h *HttpExtension) HttpJobFor(job jobs.Job) (exc http.RemoteExecutable, err error) {
+func (h *HttpExtension) HttpJobFor(job interface{}) (exc http.RemoteExecutable, err error) {
 	switch j := job.(type) {
 	case *gitjobs.CreateRepositoryRequest:
 		exc = &HttpCreateRepositoryRequest{CreateRepositoryRequest: *j}
 	case *gitjobs.GitArchiveContentRequest:
 		exc = &httpGitArchiveContentRequest{GitArchiveContentRequest: *j}
+	default:
+		err = jobs.ErrNoJobForRequest
 	}
 	return
 }

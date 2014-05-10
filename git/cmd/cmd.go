@@ -7,7 +7,6 @@ import (
 	gitjobs "github.com/openshift/geard/git/jobs"
 	"github.com/openshift/geard/jobs"
 	sshjobs "github.com/openshift/geard/ssh/jobs"
-	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/transport"
 
 	"github.com/spf13/cobra"
@@ -53,7 +52,7 @@ func repoCreate(c *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <id> [<clone repo url>]\n")
 	}
 
-	t := c.Flags().Lookup("transport").Value.(*transport.TransportFlag).Get()
+	t := NewTransport(c.Flags().Lookup("transport").Value.(*transport.TransportFlag).Get())
 
 	id, err := NewResourceLocator(t, git.ResourceTypeRepository, args[0])
 	if err != nil {
@@ -70,7 +69,7 @@ func repoCreate(c *cobra.Command, args []string) {
 
 	Executor{
 		On: Locators{id},
-		Serial: func(on Locator) jobs.Job {
+		Serial: func(on Locator) JobRequest {
 			return &gitjobs.CreateRepositoryRequest{
 				Id:        git.RepoIdentifier(on.(*ResourceLocator).Id),
 				CloneUrl:  cloneUrl,
@@ -78,7 +77,6 @@ func repoCreate(c *cobra.Command, args []string) {
 			}
 		},
 		Output:    os.Stdout,
-		LocalInit: LocalInitializers(systemd.Start, containers.InitializeData),
 		Transport: t,
 	}.StreamAndExit()
 }
