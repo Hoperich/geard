@@ -1,5 +1,3 @@
-// +build !disable_router
-
 package cmd
 
 import (

@@ -1,5 +1,3 @@
-// +build !disable_git
-
 package cmd
 
 import (
