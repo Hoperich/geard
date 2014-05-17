@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"strconv"
+
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
-	"os"
-	"strconv"
 )
 
 const DistributeAffinity = "distribute"

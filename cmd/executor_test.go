@@ -54,17 +54,13 @@ func TestShouldSendRemoteJob(t *testing.T) {
 
 	Executor{
 		On: Locators{locator},
-		Serial: func(on Locator) jobs.Job {
+		Serial: func(on Locator) JobRequest {
 			if on != locator {
 				t.Fatalf("Expected locator passed to Serial() to be identical to %+v", locator)
 			}
 			return &cjobs.StoppedContainerStateRequest{
 				Id: AsIdentifier(on),
 			}
-		},
-		LocalInit: func() error {
-			initCalled = true
-			return nil
 		},
 		Transport: trans,
 	}.Gather()

@@ -43,7 +43,7 @@ func (h *HttpCreateRepositoryRequest) HttpPath() string {
 	return http.Inline("/repository/:id", string(h.Id))
 }
 func (h *HttpCreateRepositoryRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
-	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
 		repositoryId, errg := containers.NewIdentifier(r.PathParam("id"))
 		if errg != nil {
 			return nil, errg
@@ -67,7 +67,7 @@ func (h *httpGitArchiveContentRequest) HttpPath() string {
 	return http.Inline("/repository/:id/archive/:ref", string(h.RepositoryId), string(h.Ref))
 }
 func (h *httpGitArchiveContentRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
-	return func(context *jobs.JobContext, r *rest.Request) (jobs.Job, error) {
+	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
 		repoId, errr := containers.NewIdentifier(r.PathParam("id"))
 		if errr != nil {
 			return nil, jobs.SimpleError{jobs.ResponseInvalidRequest, fmt.Sprintf("Invalid repository identifier: %s", errr.Error())}

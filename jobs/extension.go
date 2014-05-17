@@ -14,6 +14,13 @@ type JobExtension interface {
 	JobFor(request interface{}) (Job, error)
 }
 
+// Convenience wrapper for execution a JobExtension handler
+type JobExtensionFunc func(interface{}) (Job, error)
+
+func (f JobExtensionFunc) JobFor(request interface{}) (Job, error) {
+	return f(request)
+}
+
 // All local execution extensions
 var extensions []JobExtension
 

@@ -4,15 +4,17 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
+	csystemd "github.com/openshift/geard/containers/systemd"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
-	"log"
-	"os"
-	"path/filepath"
 )
 
 var ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
@@ -218,7 +220,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	slice := "container-small"
 
 	// write the definition unit file
-	args := containers.ContainerUnit{
+	args := csystemd.ContainerUnit{
 		Id:       id,
 		Image:    req.Image,
 		PortSpec: portSpec,
@@ -251,7 +253,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 		templateName = "SIMPLE"
 	}
 
-	if erre := containers.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
+	if erre := csystemd.ContainerUnitTemplate.ExecuteTemplate(unit, templateName, args); erre != nil {
 		log.Printf("install_container: Unable to output template: %+v", erre)
 		resp.Failure(ErrContainerCreateFailed)
 		defer os.Remove(unitVersionPath)
@@ -274,7 +276,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 
 	// write whether this container should be started on next boot
 	if req.Started {
-		if errs := id.SetUnitStartOnBoot(true); errs != nil {
+		if errs := csystemd.SetUnitStartOnBoot(id, true); errs != nil {
 			log.Print("install_container: Unable to write container boot link: ", err)
 			resp.Failure(ErrContainerCreateFailed)
 			return
@@ -321,7 +323,7 @@ func (req *InstallContainerRequest) Execute(resp jobs.Response) {
 	}
 }
 
-func writeSocketUnit(path string, args *containers.ContainerUnit) error {
+func writeSocketUnit(path string, args *csystemd.ContainerUnit) error {
 	socketUnit, err := os.Create(path)
 	if err != nil {
 		log.Print("install_container: Unable to open socket file: ", err)
@@ -329,7 +331,7 @@ func writeSocketUnit(path string, args *containers.ContainerUnit) error {
 	}
 	defer socketUnit.Close()
 
-	socketTemplate := containers.ContainerSocketTemplate
+	socketTemplate := csystemd.ContainerSocketTemplate
 	if err := socketTemplate.Execute(socketUnit, args); err != nil {
 		log.Printf("install_container: Unable to output socket template: %+v", err)
 		defer os.Remove(path)

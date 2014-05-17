@@ -3,31 +3,28 @@
 package http
 
 import (
-	"errors"
 	"fmt"
-	"github.com/openshift/geard/config"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/dispatcher"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/go-json-rest"
 	"io"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/openshift/geard/config"
+	"github.com/openshift/geard/dispatcher"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/go-json-rest"
 )
 
 func ApiVersion() string {
 	return "1"
 }
 
-var ErrHandledResponse = errors.New("Request handled")
-
 type HttpConfiguration struct {
 	Docker     config.DockerConfiguration
 	Dispatcher *dispatcher.Dispatcher
 }
 
-type JobHandler func(*jobs.JobContext, *rest.Request) (jobs.Job, error)
+type JobHandler func(*jobs.JobContext, *rest.Request) (interface{}, error)
 
 type HttpJobHandler interface {
 	RemoteJob
@@ -38,41 +35,14 @@ type HttpStreamable interface {
 	Streamable() bool
 }
 
-func (conf *HttpConfiguration) Handler() http.Handler {
+func (conf *HttpConfiguration) Handler() (http.Handler, error) {
 	handler := rest.ResourceHandler{
 		EnableRelaxedContentType: true,
 		EnableResponseStackTrace: true,
 		EnableGzip:               false,
 	}
 
-	handlers := []HttpJobHandler{
-		&HttpRunContainerRequest{},
-
-		&HttpInstallContainerRequest{},
-		&HttpDeleteContainerRequest{},
-		&HttpContainerLogRequest{},
-		&HttpContainerStatusRequest{},
-		&HttpListContainerPortsRequest{},
-
-		&HttpStartContainerRequest{},
-		&HttpStopContainerRequest{},
-		&HttpRestartContainerRequest{},
-
-		&HttpLinkContainersRequest{},
-
-		&HttpListContainersRequest{},
-		&HttpListImagesRequest{},
-		&HttpListBuildsRequest{},
-
-		&HttpBuildImageRequest{},
-
-		&HttpPatchEnvironmentRequest{},
-		&HttpPutEnvironmentRequest{},
-
-		&HttpContentRequest{},
-		&HttpContentRequest{ContentRequest: cjobs.ContentRequest{Subpath: "*"}},
-		&HttpContentRequest{ContentRequest: cjobs.ContentRequest{Type: cjobs.ContentTypeEnvironment}},
-	}
+	handlers := []HttpJobHandler{}
 
 	for _, ext := range extensions {
 		routes := ext.Routes()
@@ -86,8 +56,13 @@ func (conf *HttpConfiguration) Handler() http.Handler {
 		routes[i] = conf.jobRestHandler(handlers[i])
 	}
 
-	handler.SetRoutes(routes...)
-	return &handler
+	if err := handler.SetRoutes(routes...); err != nil {
+		for i := range routes {
+			log.Printf("failed: %+v", routes[i])
+		}
+		return nil, err
+	}
+	return &handler, nil
 }
 
 func (conf *HttpConfiguration) jobRestHandler(handler HttpJobHandler) rest.Route {
@@ -125,39 +100,32 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 			context.Id = id
 		}
 
-		/*token, id, errt := extractToken(r.PathParam("token"), r.Request)
-		if errt != nil {
-			log.Println(errt)
-			http.Error(w, "Token is required - pass /token/<token>/<path>", http.StatusForbidden)
-			return
-		}
-
-		if token.D == 0 {
-			log.Println("http: Recommend passing 'd' as an argument for the current date")
-		}
-		if token.U == "" {
-			log.Println("http: Recommend passing 'u' as an argument for the associated user")
-		}*/
-
-		job, errh := method(context, r)
+		// parse the incoming request into an object
+		jobRequest, errh := method(context, r)
 		if errh != nil {
-			if errh != ErrHandledResponse {
-				http.Error(w, "Invalid request: "+errh.Error()+"\n", http.StatusBadRequest)
-			}
+			serveRequestError(w, apiRequestError{errh, errh.Error(), http.StatusBadRequest})
 			return
 		}
 
+		// find the job implementation for that request
+		job, errj := jobs.JobFor(jobRequest)
+		if errj != nil {
+			serveRequestError(w, apiRequestError{errj, errj.Error(), http.StatusBadRequest})
+			return
+		}
+
+		// setup a response object
 		mode := ResponseJson
 		if r.Header.Get("Accept") == "text/plain" {
 			mode = ResponseTable
 		}
-
 		canStream := true
 		if streaming, ok := job.(HttpStreamable); ok {
 			canStream = streaming.Streamable()
 		}
 		response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
 
+		// queue / handle the request
 		wait, errd := conf.Dispatcher.Dispatch(context.Id, job, response)
 		if errd == jobs.ErrRanToCompletion {
 			http.Error(w, errd.Error(), http.StatusNoContent)

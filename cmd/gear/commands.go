@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"log"
@@ -13,24 +14,21 @@ import (
 	"time"
 
 	"github.com/openshift/docker-source-to-images/go"
-	"github.com/openshift/geard/cleanup"
+
 	. "github.com/openshift/geard/cmd"
 	"github.com/openshift/geard/config"
 	"github.com/openshift/geard/containers"
 	cjobs "github.com/openshift/geard/containers/jobs"
 	"github.com/openshift/geard/deployment"
 	"github.com/openshift/geard/dispatcher"
-	"github.com/openshift/geard/encrypted"
+	// "github.com/openshift/geard/encrypted"
 	"github.com/openshift/geard/http"
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/transport"
-	"github.com/spf13/cobra"
 )
 
 var (
-	pre    bool
-	post   bool
 	follow bool
 
 	resetEnv bool
@@ -59,10 +57,7 @@ var (
 
 	listenAddr string
 
-	dryRun bool
-	repair bool
-
-	defaultTransport transport.TransportFlag
+	defaultTransport LocalTransportFlag
 )
 
 var conf = http.HttpConfiguration{
@@ -223,16 +218,6 @@ func Execute() {
 	daemonCmd.Flags().StringVarP(&listenAddr, "listen-address", "A", ":43273", "Set the address for the http endpoint to listen on")
 	AddCommand(gearCmd, daemonCmd, true)
 
-	cleanCmd := &cobra.Command{
-		Use:   "clean",
-		Short: "(local) Perform housekeeping tasks on geard directories",
-		Long:  "Perform various tasks to clean up the state, images, directories and other resources.",
-		Run:   clean,
-	}
-	cleanCmd.Flags().BoolVarP(&dryRun, "dry-run", "", false, "List the cleanups, but do not execute.")
-	cleanCmd.Flags().BoolVarP(&repair, "repair", "", false, "Perform potentially irrecoverable cleanups.")
-	AddCommand(gearCmd, cleanCmd, true)
-
 	purgeCmd := &cobra.Command{
 		Use:   "purge",
 		Short: "(Local) Stop and disable systemd gear units",
@@ -241,24 +226,14 @@ func Execute() {
 	}
 	AddCommand(gearCmd, purgeCmd, true)
 
-	initGearCmd := &cobra.Command{
-		Use:   "init <name> <image>",
-		Short: "(Local) Setup the environment for a container",
-		Long:  "",
-		Run:   initGear,
-	}
-	initGearCmd.Flags().BoolVarP(&pre, "pre", "", false, "Perform pre-start initialization")
-	initGearCmd.Flags().BoolVarP(&post, "post", "", false, "Perform post-start initialization")
-	AddCommand(gearCmd, initGearCmd, true)
-
-	createTokenCmd := &cobra.Command{
-		Use:   "create-token <type> <content_id>",
-		Short: "(Local) Generate a content request token",
-		Long:  "Create a URL that will serve as a content request token using a server public key and client private key.",
-		Run:   createToken,
-	}
-	createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
-	gearCmd.AddCommand(createTokenCmd)
+	// createTokenCmd := &cobra.Command{
+	// 	Use:   "create-token <type> <content_id>",
+	// 	Short: "(Local) Generate a content request token",
+	// 	Long:  "Create a URL that will serve as a content request token using a server public key and client private key.",
+	// 	Run:   createToken,
+	// }
+	// createTokenCmd.Flags().Int64Var(&expiresAt, "expires-at", time.Now().Unix()+3600, "Specify the content request token expiration time in seconds after the Unix epoch")
+	// gearCmd.AddCommand(createTokenCmd)
 
 	ExtendCommands(gearCmd, true)
 
@@ -272,7 +247,7 @@ func gear(cmd *cobra.Command, args []string) {
 }
 
 func purge(cmd *cobra.Command, args []string) {
-	job, err := NewTransport(defaultTransport.Get()).RemoteJobFor(transport.Local, &cjobs.PurgeContainersRequest{})
+	job, err := defaultTransport.Get().RemoteJobFor(transport.Local, &cjobs.PurgeContainersRequest{})
 	if err != nil {
 		Fail(1, err.Error())
 	}
@@ -288,7 +263,7 @@ func deployContainers(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <deployment_file> <host> ...")
 	}
 
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	path := args[0]
 	if path == "" {
@@ -445,7 +420,7 @@ func installImage(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <image_name> <id> ...")
 	}
 
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	imageId := args[0]
 	if imageId == "" {
@@ -531,7 +506,7 @@ func setEnvironment(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <name>... <key>=<value>...")
 	}
 
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	ids, err := NewContainerLocators(t, args...)
 	if err != nil {
@@ -558,7 +533,7 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <id> ...")
 	}
 
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	ids, err := NewContainerLocators(t, args[0:]...)
 	if err != nil {
@@ -592,7 +567,7 @@ func showEnvironment(cmd *cobra.Command, args []string) {
 }
 
 func deleteContainer(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if err := ExtractContainerLocatorsFromDeployment(t, deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
@@ -628,7 +603,7 @@ func linkContainers(cmd *cobra.Command, args []string) {
 		Fail(1, "Valid arguments: <id> ...")
 	}
 
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	ids, err := NewContainerLocators(t, args...)
 	if err != nil {
@@ -661,7 +636,7 @@ func linkContainers(cmd *cobra.Command, args []string) {
 }
 
 func startContainer(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if err := ExtractContainerLocatorsFromDeployment(t, deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
@@ -687,7 +662,7 @@ func startContainer(cmd *cobra.Command, args []string) {
 }
 
 func stopContainer(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if err := ExtractContainerLocatorsFromDeployment(t, deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
@@ -713,7 +688,7 @@ func stopContainer(cmd *cobra.Command, args []string) {
 }
 
 func restartContainer(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if err := ExtractContainerLocatorsFromDeployment(t, deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
@@ -739,7 +714,7 @@ func restartContainer(cmd *cobra.Command, args []string) {
 }
 
 func containerStatus(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if err := ExtractContainerLocatorsFromDeployment(t, deploymentPath, &args); err != nil {
 		Fail(1, err.Error())
@@ -781,7 +756,7 @@ func containerStatus(cmd *cobra.Command, args []string) {
 }
 
 func listUnits(cmd *cobra.Command, args []string) {
-	t := NewTransport(defaultTransport.Get())
+	t := defaultTransport.Get()
 
 	if len(args) == 0 {
 		args = []string{transport.Local.String()}
@@ -800,11 +775,12 @@ func listUnits(cmd *cobra.Command, args []string) {
 		Transport: t,
 	}.Gather()
 
-	combined := http.ListContainersResponse{}
+	combined := cjobs.ListServerContainersResponse{}
 	for i := range data {
-		if r, ok := data[i].(*http.ListContainersResponse); ok {
-			combined.Append(&r.ListContainersResponse)
-		} else if j, ok := data[i].(*cjobs.ListContainersResponse); ok {
+		// if r, ok := data[i].(*cjobs.ListServerContainersResponse); ok {
+		// 	combined.Append(&r.ListContainersResponse)
+		// } else
+		if j, ok := data[i].(*cjobs.ListContainersResponse); ok {
 			combined.Append(j)
 		}
 	}
@@ -819,52 +795,24 @@ func listUnits(cmd *cobra.Command, args []string) {
 	os.Exit(0)
 }
 
-func createToken(cmd *cobra.Command, args []string) {
-	if len(args) != 2 {
-		Fail(1, "Valid arguments: <type> <content_id>")
-	}
+// func createToken(cmd *cobra.Command, args []string) {
+// 	if len(args) != 2 {
+// 		Fail(1, "Valid arguments: <type> <content_id>")
+// 	}
 
-	if keyPath == "" {
-		Fail(1, "You must specify --key-path to create a token")
-	}
-	config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "client"), filepath.Join(keyPath, "server.pub"))
-	if err != nil {
-		Fail(1, "Unable to load token configuration: %s", err.Error())
-	}
+// 	if keyPath == "" {
+// 		Fail(1, "You must specify --key-path to create a token")
+// 	}
+// 	config, err := encrypted.NewTokenConfiguration(filepath.Join(keyPath, "client"), filepath.Join(keyPath, "server.pub"))
+// 	if err != nil {
+// 		Fail(1, "Unable to load token configuration: %s", err.Error())
+// 	}
 
-	job := &cjobs.ContentRequest{Locator: args[1], Type: args[0]}
-	value, err := config.Sign(job, "key", expiresAt)
-	if err != nil {
-		Fail(1, "Unable to sign this request: %s", err.Error())
-	}
-	fmt.Printf("%s", value)
-	os.Exit(0)
-}
-
-func initGear(cmd *cobra.Command, args []string) {
-	if len(args) != 2 || !(pre || post) || (pre && post) {
-		Fail(1, "Valid arguments: <id> <image_name> (--pre|--post)")
-	}
-	containerId, err := containers.NewIdentifier(args[0])
-	if err != nil {
-		Fail(1, "Argument 1 must be a valid gear identifier: %s", err.Error())
-	}
-
-	switch {
-	case pre:
-		if err := InitPreStart(conf.Docker.Socket, containerId, args[1]); err != nil {
-			Fail(2, "Unable to initialize container %s", err.Error())
-		}
-	case post:
-		if err := InitPostStart(conf.Docker.Socket, containerId); err != nil {
-			Fail(2, "Unable to initialize container %s", err.Error())
-		}
-	}
-}
-
-func clean(cmd *cobra.Command, args []string) {
-	logInfo := log.New(os.Stdout, "INFO: ", log.Ldate|log.Ltime)
-	logError := log.New(os.Stderr, "ERROR: ", log.Ldate|log.Ltime)
-
-	cleanup.Clean(&cleanup.CleanerContext{DryRun: dryRun, Repair: repair, LogInfo: logInfo, LogError: logError})
-}
+// 	job := &cjobs.ContentRequest{Locator: args[1], Type: args[0]}
+// 	value, err := config.Sign(job, "key", expiresAt)
+// 	if err != nil {
+// 		Fail(1, "Unable to sign this request: %s", err.Error())
+// 	}
+// 	fmt.Printf("%s", value)
+// 	os.Exit(0)
+// }

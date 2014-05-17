@@ -2,14 +2,15 @@ package deployment
 
 import (
 	"encoding/json"
-	"github.com/openshift/geard/http"
-	"github.com/openshift/geard/port"
-	"github.com/openshift/geard/transport"
 	"io/ioutil"
 	"log"
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/openshift/geard/http"
+	"github.com/openshift/geard/port"
+	"github.com/openshift/geard/transport"
 )
 
 var loopbackTransport = http.NewHttpTransport()

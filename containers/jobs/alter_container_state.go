@@ -3,12 +3,14 @@ package jobs
 import (
 	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/systemd"
 	"log"
 	"os"
 	"time"
+
+	"github.com/openshift/geard/containers"
+	csystemd "github.com/openshift/geard/containers/systemd"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
 )
 
 var rateLimitChanges uint64 = 400 * 1000 /* in microseconds */
@@ -108,7 +110,7 @@ func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
 		return
 	}
 
-	if errs := j.Id.SetUnitStartOnBoot(true); errs != nil {
+	if errs := csystemd.SetUnitStartOnBoot(j.Id, true); errs != nil {
 		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
 		resp.Failure(ErrContainerStartFailed)
 		return
@@ -152,7 +154,7 @@ func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
 		return
 	}
 
-	if errs := j.Id.SetUnitStartOnBoot(false); errs != nil {
+	if errs := csystemd.SetUnitStartOnBoot(j.Id, false); errs != nil {
 		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
 		resp.Failure(ErrContainerStopFailed)
 		return
@@ -224,7 +226,7 @@ func (j *RestartContainerRequest) Execute(resp jobs.Response) {
 		return
 	}
 
-	if errs := j.Id.SetUnitStartOnBoot(true); errs != nil {
+	if errs := csystemd.SetUnitStartOnBoot(j.Id, true); errs != nil {
 		log.Print("alter_container_state: Unable to persist whether the unit is started on boot: ", errs)
 		resp.Failure(ErrContainerRestartFailed)
 		return

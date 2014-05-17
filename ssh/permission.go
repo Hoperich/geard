@@ -15,6 +15,14 @@ func init() {
 	handler := &containerPermission{}
 	AddPermissionHandler("", handler)
 	AddPermissionHandler(ContainerPermissionType, handler)
+
+	// Register the required configuration directories
+	config.AddRequiredDirectory(
+		0755,
+		config.ContainerBasePath(),
+		filepath.Join(config.ContainerBasePath(), "access", "containers", "ssh"),
+		filepath.Join(config.ContainerBasePath(), "keys", "public"),
+	)
 }
 
 type containerPermission struct{}

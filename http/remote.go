@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	cjobs "github.com/openshift/geard/containers/jobs"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/transport"
 	"io"
 	"log"
 	"net"
@@ -14,6 +11,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/transport"
 )
 
 const DefaultHttpPort = "43273"
@@ -87,42 +87,17 @@ func urlForLocator(locator transport.Locator) (*url.URL, error) {
 }
 
 func HttpJobFor(job interface{}) (exc RemoteExecutable, err error) {
-	switch j := job.(type) {
-	case *cjobs.InstallContainerRequest:
-		exc = &HttpInstallContainerRequest{InstallContainerRequest: *j}
-	case *cjobs.StartedContainerStateRequest:
-		exc = &HttpStartContainerRequest{StartedContainerStateRequest: *j}
-	case *cjobs.StoppedContainerStateRequest:
-		exc = &HttpStopContainerRequest{StoppedContainerStateRequest: *j}
-	case *cjobs.RestartContainerRequest:
-		exc = &HttpRestartContainerRequest{RestartContainerRequest: *j}
-	case *cjobs.PutEnvironmentRequest:
-		exc = &HttpPutEnvironmentRequest{PutEnvironmentRequest: *j}
-	case *cjobs.PatchEnvironmentRequest:
-		exc = &HttpPatchEnvironmentRequest{PatchEnvironmentRequest: *j}
-	case *cjobs.ContainerStatusRequest:
-		exc = &HttpContainerStatusRequest{ContainerStatusRequest: *j}
-	case *cjobs.ContentRequest:
-		exc = &HttpContentRequest{ContentRequest: *j}
-	case *cjobs.DeleteContainerRequest:
-		exc = &HttpDeleteContainerRequest{DeleteContainerRequest: *j}
-	case *cjobs.LinkContainersRequest:
-		exc = &HttpLinkContainersRequest{LinkContainersRequest: *j}
-	case *cjobs.ListContainersRequest:
-		exc = &HttpListContainersRequest{ListContainersRequest: *j}
-	default:
-		for _, ext := range extensions {
-			req, errr := ext.HttpJobFor(job)
-			if errr == jobs.ErrNoJobForRequest {
-				continue
-			}
-			if errr != nil {
-				return nil, errr
-			}
-			return req, nil
+	for _, ext := range extensions {
+		req, errr := ext.HttpJobFor(job)
+		if errr == jobs.ErrNoJobForRequest {
+			continue
 		}
-		err = jobs.ErrNoJobForRequest
+		if errr != nil {
+			return nil, errr
+		}
+		return req, nil
 	}
+	err = jobs.ErrNoJobForRequest
 	return
 }
 

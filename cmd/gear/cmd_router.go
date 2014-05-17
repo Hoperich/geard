@@ -3,5 +3,10 @@
 package main
 
 import (
-	_ "github.com/openshift/geard/router/cmd"
+	"github.com/openshift/geard/cmd"
+	routercmd "github.com/openshift/geard/router/cmd"
 )
+
+func init() {
+	cmd.AddCommandExtension(routercmd.RegisterRouter, true)
+}

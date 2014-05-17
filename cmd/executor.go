@@ -27,6 +27,9 @@ type FuncReact func(*CliJobResponse, io.Writer, JobRequest)
 // parallel or sequentially.  You must set either .Group
 // or .Serial
 type Executor struct {
+	// An interface for converting requests into jobs.
+	Transport transport.Transport
+	// The set of destinations to act on.
 	On Locators
 	// Given a set of locators on the same server, create one
 	// job that represents all ids.
@@ -40,12 +43,6 @@ type Executor struct {
 	OnSuccess FuncReact
 	// Optional: respond to errors when they occur
 	OnFailure FuncReact
-	// Optional: a way to execute a job on a remote server. If not
-	// specified remote locators will fail
-	Transport transport.Transport
-	// Optional: a way to execute a job on the local server. If not
-	// specified local locators will fail
-	LocalTransport transport.Transport
 }
 
 // Invoke the appropriate job on each server and return the set of data
@@ -124,14 +121,7 @@ func (e *Executor) run(gather bool) ([]*CliJobResponse, error) {
 		}
 		byDestination[i] = jobs
 		for j := range jobs {
-			var t transport.Transport
-			switch jobs[i].Locator.TransportLocator() {
-			case transport.Local:
-				t = e.LocalTransport
-			default:
-				t = e.Transport
-			}
-			remote, err := t.RemoteJobFor(jobs[j].Locator.TransportLocator(), jobs[j])
+			remote, err := e.Transport.RemoteJobFor(jobs[j].Locator.TransportLocator(), jobs[j].Request)
 			if err != nil {
 				return responses, err
 			}

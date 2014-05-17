@@ -2,7 +2,6 @@ package transport
 
 import (
 	"errors"
-	"fmt"
 	"log"
 
 	"github.com/openshift/geard/jobs"
@@ -22,6 +21,7 @@ type Transport interface {
 
 var transports = make(map[string]Transport)
 
+// Define the implementation of a transport for use
 func RegisterTransport(name string, t Transport) {
 	if t == nil {
 		log.Printf("Transport for '%s' must not be nil", name)
@@ -41,29 +41,4 @@ func GetTransportNames() []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-// Implement the flag.Value interface for reading a transport
-// from a string.
-type TransportFlag struct {
-	Transport
-	name string
-}
-
-func (t *TransportFlag) Get() Transport {
-	return t.Transport
-}
-
-func (t *TransportFlag) String() string {
-	return t.name
-}
-
-func (t *TransportFlag) Set(s string) error {
-	value, ok := GetTransport(s)
-	if !ok {
-		return errors.New(fmt.Sprintf("No transport defined for '%s'.  Valid transports are %v", s, GetTransportNames()))
-	}
-	t.name = s
-	t.Transport = value
-	return nil
 }

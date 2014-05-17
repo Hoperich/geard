@@ -1,19 +1,26 @@
-package cmd
+package main
 
 import (
 	"github.com/openshift/geard/jobs"
 	"github.com/openshift/geard/transport"
 )
 
-type localTransport struct {
-	remote transport.Transport
+type LocalTransportFlag struct {
+	transport.TransportFlag
+}
+
+func (t *LocalTransportFlag) Set(name string) error {
+	if err := t.TransportFlag.Set(name); err != nil {
+		return err
+	}
+	t.Transport = &localTransport{remote: t.Transport}
+	return nil
 }
 
 // Create a transport that will invoke the default job implementation for a given
 // request with a local locator, and pass any other requests to the remote transport.
-func NewTransport(remote transport.Transport) *localTransport {
-	t := &localTransport{remote}
-	return t
+type localTransport struct {
+	remote transport.Transport
 }
 
 func (h *localTransport) LocatorFor(value string) (transport.Locator, error) {
