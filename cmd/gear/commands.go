@@ -303,13 +303,12 @@ func deployContainers(cmd *cobra.Command, args []string) {
 			On: removedIds,
 			Serial: func(on Locator) JobRequest {
 				return &cjobs.DeleteContainerRequest{
-					Id:    AsIdentifier(on),
-					Label: on.Identity(),
+					Id: AsIdentifier(on),
 				}
 			},
 			Output: os.Stdout,
 			OnSuccess: func(r *CliJobResponse, w io.Writer, job JobRequest) {
-				fmt.Fprintf(w, "==> Deleted %s", job.(jobs.LabeledJob).JobLabel())
+				fmt.Fprintf(w, "==> Deleted %s", string(job.(*cjobs.DeleteContainerRequest).Id))
 			},
 			Transport: t,
 		}.Stream()
@@ -376,16 +375,16 @@ func deployContainers(cmd *cobra.Command, args []string) {
 	Executor{
 		On: linkedIds,
 		Group: func(on ...Locator) JobRequest {
-			links := []cjobs.ContainerLink{}
+			links := []containers.ContainerLink{}
 			for i := range on {
 				instance, _ := changes.Instances.Find(AsIdentifier(on[i]))
 				network := instance.NetworkLinks()
 				if len(network) > 0 {
-					links = append(links, cjobs.ContainerLink{instance.Id, network})
+					links = append(links, containers.ContainerLink{instance.Id, network})
 				}
 			}
 
-			return &cjobs.LinkContainersRequest{&cjobs.ContainerLinks{links}, on[0].TransportLocator().String()}
+			return &cjobs.LinkContainersRequest{&containers.ContainerLinks{links}}
 		},
 		Output:    os.Stdout,
 		Transport: t,
@@ -586,8 +585,7 @@ func deleteContainer(cmd *cobra.Command, args []string) {
 		On: ids,
 		Serial: func(on Locator) JobRequest {
 			return &cjobs.DeleteContainerRequest{
-				Id:    AsIdentifier(on),
-				Label: on.Identity(),
+				Id: AsIdentifier(on),
 			}
 		},
 		Output: os.Stdout,
@@ -616,20 +614,15 @@ func linkContainers(cmd *cobra.Command, args []string) {
 	Executor{
 		On: ids,
 		Group: func(on ...Locator) JobRequest {
-			links := &cjobs.ContainerLinks{make([]cjobs.ContainerLink, 0, len(on))}
-			buf := bytes.Buffer{}
+			links := &containers.ContainerLinks{make([]containers.ContainerLink, 0, len(on))}
 			for i := range on {
-				links.Links = append(links.Links, cjobs.ContainerLink{AsIdentifier(on[i]), *networkLinks.NetworkLinks})
-				if i > 0 {
-					buf.WriteString(", ")
-				}
-				buf.WriteString(on[i].Identity())
+				links.Links = append(links.Links, containers.ContainerLink{AsIdentifier(on[i]), *networkLinks.NetworkLinks})
 			}
-			return &cjobs.LinkContainersRequest{links, buf.String()}
+			return &cjobs.LinkContainersRequest{links}
 		},
 		Output: os.Stdout,
 		OnSuccess: func(r *CliJobResponse, w io.Writer, job JobRequest) {
-			fmt.Fprintf(w, "Links set on %s\n", job.(jobs.LabeledJob).JobLabel())
+			fmt.Fprintf(w, "Links set on %s\n", job.(*cjobs.LinkContainersRequest).ContainerLinks.String())
 		},
 		Transport: t,
 	}.StreamAndExit()
@@ -769,7 +762,7 @@ func listUnits(cmd *cobra.Command, args []string) {
 	data, errors := Executor{
 		On: servers,
 		Group: func(on ...Locator) JobRequest {
-			return &cjobs.ListContainersRequest{on[0].TransportLocator().String()}
+			return &cjobs.ListContainersRequest{}
 		},
 		Output:    os.Stdout,
 		Transport: t,

@@ -1,46 +1,21 @@
+// +build linux
+
 package jobs
 
 import (
-	"errors"
 	"fmt"
-	"github.com/openshift/geard/containers"
-	"github.com/openshift/geard/jobs"
-	"github.com/openshift/geard/systemd"
-	"github.com/openshift/geard/utils"
-	"github.com/openshift/go-systemd/dbus"
 	"io"
 	"log"
 	"os"
 	"reflect"
 	"time"
+
+	"github.com/openshift/geard/containers"
+	"github.com/openshift/geard/jobs"
+	"github.com/openshift/geard/systemd"
+	"github.com/openshift/geard/utils"
+	"github.com/openshift/go-systemd/dbus"
 )
-
-type BuildImageRequest struct {
-	*ExtendedBuildImageData
-}
-
-type ExtendedBuildImageData struct {
-	Name         string
-	Source       string
-	Tag          string
-	BaseImage    string
-	RuntimeImage string
-	Clean        bool
-	Verbose      bool
-}
-
-func (e *ExtendedBuildImageData) Check() error {
-	if e.Name == "" {
-		return errors.New("An identifier must be specified for this build")
-	}
-	if e.BaseImage == "" {
-		return errors.New("A base image is required to start a build")
-	}
-	if e.Source == "" {
-		return errors.New("A source input is required to start a build")
-	}
-	return nil
-}
 
 const (
 	buildImage     = "pmorie/sti-builder-go"

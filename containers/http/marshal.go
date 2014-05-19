@@ -62,7 +62,7 @@ func (h *HttpListContainersRequest) UnmarshalHttpResponse(headers nethttp.Header
 	}
 	for i := range list.Containers {
 		c := &list.Containers[i]
-		c.Server = h.Label
+		c.Server = h.Server
 	}
 	return list, nil
 }

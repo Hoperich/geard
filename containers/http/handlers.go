@@ -305,10 +305,10 @@ func (h *HttpBuildImageRequest) HttpMethod() string { return "POST" }
 func (h *HttpBuildImageRequest) HttpPath() string   { return "/build-image" }
 func (h *HttpBuildImageRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
-		data := cjobs.ExtendedBuildImageData{}
+		data := &cjobs.BuildImageRequest{}
 		if r.Body != nil {
 			dec := json.NewDecoder(r.Body)
-			if err := dec.Decode(&data); err != nil && err != io.EOF {
+			if err := dec.Decode(data); err != nil && err != io.EOF {
 				return nil, err
 			}
 		}
@@ -317,9 +317,7 @@ func (h *HttpBuildImageRequest) Handler(conf *http.HttpConfiguration) http.JobHa
 			return nil, err
 		}
 
-		return &cjobs.BuildImageRequest{
-			&data,
-		}, nil
+		return data, nil
 	}
 }
 
@@ -436,7 +434,7 @@ func (h *HttpLinkContainersRequest) HttpMethod() string { return "POST" }
 func (h *HttpLinkContainersRequest) HttpPath() string   { return "/containers/links" }
 func (h *HttpLinkContainersRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
-		data := &cjobs.ContainerLinks{}
+		data := &containers.ContainerLinks{}
 		if r.Body != nil {
 			dec := json.NewDecoder(limitedBodyReader(r))
 			if err := dec.Decode(data); err != nil && err != io.EOF {

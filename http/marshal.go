@@ -11,8 +11,13 @@ import (
 	"github.com/openshift/geard/utils"
 )
 
-type DefaultRequest struct{}
+type DefaultRequest struct {
+	Server string `json:"-"`
+}
 
+func (h *DefaultRequest) SetServer(server string) {
+	h.Server = server
+}
 func (h *DefaultRequest) MarshalHttpRequestBody(w io.Writer) error {
 	return nil
 }

@@ -1,3 +1,5 @@
+// +build linux
+
 package jobs
 
 import (
@@ -11,15 +13,6 @@ import (
 	"github.com/openshift/geard/port"
 	"github.com/openshift/geard/systemd"
 )
-
-type DeleteContainerRequest struct {
-	Id    containers.Identifier
-	Label string
-}
-
-func (j *DeleteContainerRequest) JobLabel() string {
-	return j.Label
-}
 
 func (j *DeleteContainerRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()

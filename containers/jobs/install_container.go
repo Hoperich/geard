@@ -1,3 +1,5 @@
+// +build linux
+
 package jobs
 
 import (
@@ -16,104 +18,6 @@ import (
 	"github.com/openshift/geard/systemd"
 	"github.com/openshift/geard/utils"
 )
-
-var ErrContainerCreateFailedPortsReserved = jobs.SimpleError{jobs.ResponseError, "Unable to create container: some ports could not be reserved."}
-
-const PendingPortMappingName = "PortMapping"
-
-// Installing a Container
-//
-// This job will install a given container definition as a systemd service unit,
-// or update the existing definition if one already exists.
-//
-// There are a number of run modes for containers.  Some options the caller must
-// decide:
-//
-// * Is the container transient?
-//   Should stop remove any data not in a volume - accomplished by running as a
-//   specific user, and by using 'docker run --rm' as ExecStart=
-//
-// * Is the container isolated from the rest of the system?
-//   Some use cases involve the container having access to the host disk or sockets
-//   to perform system roles.  Otherwise, where possible containers should be
-//   fully isolated from the host via SELinux, user namespaces, and capability
-//   dropping.
-//
-// * Is the container hooked up to other containers?
-//   The defined unit should allow regular docker linking (name based pairing),
-//   the iptable-based SDN implemented here, and the propagation to the container
-//   environment of that configuration (whether as ENV vars or a file).
-//
-// Isolated containers:
-//
-// An isolated container runs in a way that protects it from other containers on
-// the system.  At a minimum today this means:
-//
-// 1) Create a user to represent the container, and run the process in the container
-//    as that user.  Avoids root compromise
-// 2) Assign a unique MCS category label to the container.
-//
-// In the future the need for #1 is removed by user namespaces, although given the
-// relative immaturity of that function in the kernel at the present time it is not
-// considered sufficiently secure for production use.
-//
-type InstallContainerRequest struct {
-	jobs.RequestIdentifier `json:"-"`
-
-	Id    containers.Identifier
-	Image string
-
-	// A simple container is allowed to default to normal Docker
-	// options like -P.  If simple is true no user or home
-	// directory is created and SSH is not available
-	Simple bool
-	// Should this container be run in an isolated fashion
-	// (separate user, permission changes)
-	Isolate bool
-	// Should this container be run in a socket activated fashion
-	// Implies Isolated (separate user, permission changes,
-	// no port forwarding, socket activated).
-	// If UseSocketProxy then socket files are proxies to the
-	// appropriate port
-	SocketActivation bool
-	SkipSocketProxy  bool
-
-	Ports        port.PortPairs
-	Environment  *containers.EnvironmentDescription
-	NetworkLinks *containers.NetworkLinks
-
-	// Should the container be started by default
-	Started bool
-}
-
-func (req *InstallContainerRequest) Check() error {
-	if req.SocketActivation && len(req.Ports) == 0 {
-		req.SocketActivation = false
-	}
-	if len(req.RequestIdentifier) == 0 {
-		return errors.New("A request identifier is required to create this item.")
-	}
-	if req.Image == "" {
-		return errors.New("A container must have an image identifier")
-	}
-	if req.Environment != nil && !req.Environment.Empty() {
-		if err := req.Environment.Check(); err != nil {
-			return err
-		}
-		if req.Environment.Id == containers.InvalidIdentifier {
-			return errors.New("You must specify an environment identifier on creation.")
-		}
-	}
-	if req.NetworkLinks != nil {
-		if err := req.NetworkLinks.Check(); err != nil {
-			return err
-		}
-	}
-	if req.Ports == nil {
-		req.Ports = make([]port.PortPair, 0)
-	}
-	return nil
-}
 
 func dockerPortSpec(p port.PortPairs) string {
 	var portSpec bytes.Buffer
@@ -364,9 +268,4 @@ func (j *InstallContainerRequest) Join(job jobs.Job, complete <-chan bool) (join
 	}()
 	joined = true
 	return
-}
-
-func (j *InstallContainerRequest) PortMappingsFrom(pending map[string]interface{}) (port.PortPairs, bool) {
-	p, ok := pending[PendingPortMappingName].(port.PortPairs)
-	return p, ok
 }

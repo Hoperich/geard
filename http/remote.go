@@ -33,6 +33,9 @@ type RemoteExecutable interface {
 	MarshalHttpRequestBody(io.Writer) error
 	UnmarshalHttpResponse(headers http.Header, r io.Reader, mode ResponseContentMode) (interface{}, error)
 }
+type ServerAware interface {
+	SetServer(string)
+}
 
 type HttpTransport struct {
 	client *http.Client
@@ -60,6 +63,9 @@ func (h *HttpTransport) RemoteJobFor(locator transport.Locator, j interface{}) (
 	if errh != nil {
 		err = errh
 		return
+	}
+	if serverAware, ok := httpJob.(ServerAware); ok {
+		serverAware.SetServer(baseUrl.Host)
 	}
 
 	job = jobs.JobFunction(func(res jobs.Response) {

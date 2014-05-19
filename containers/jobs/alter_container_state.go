@@ -1,3 +1,5 @@
+// +build linux
+
 package jobs
 
 import (
@@ -91,10 +93,6 @@ func inStateOrTooSoon(id containers.Identifier, unit string, active, transition 
 	return
 }
 
-type StartedContainerStateRequest struct {
-	Id containers.Identifier
-}
-
 func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
 	unitName := j.Id.UnitNameFor()
 	unitPath := j.Id.UnitPathFor()
@@ -134,10 +132,6 @@ func (j *StartedContainerStateRequest) Execute(resp jobs.Response) {
 
 	w := resp.SuccessWithWrite(jobs.ResponseAccepted, true, false)
 	fmt.Fprintf(w, "Container %s starting\n", j.Id)
-}
-
-type StoppedContainerStateRequest struct {
-	Id containers.Identifier
 }
 
 func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
@@ -205,10 +199,6 @@ func (j *StoppedContainerStateRequest) Execute(resp jobs.Response) {
 	default:
 		fmt.Fprintf(w, "Container %s is stopped\n", j.Id)
 	}
-}
-
-type RestartContainerRequest struct {
-	Id containers.Identifier
 }
 
 func (j *RestartContainerRequest) Execute(resp jobs.Response) {
