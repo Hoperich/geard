@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -55,6 +56,8 @@ var (
 	writeAccess bool
 	hostIp      string
 
+	insecure   bool
+	timeout    int64
 	listenAddr string
 
 	defaultTransport LocalTransportFlag
@@ -88,14 +91,16 @@ func Execute() {
 	gearCmd.PersistentFlags().BoolVar(&(config.SystemDockerFeatures.ForegroundRun), "has-foreground", false, "(experimental) Use --foreground with Docker, requires alexlarsson/forking-run")
 	gearCmd.PersistentFlags().StringVar(&deploymentPath, "with", "", "Provide a deployment descriptor to operate on")
 	gearCmd.PersistentFlags().Var(&defaultTransport, "transport", "Specify an alternate mechanism to connect to the gear agent")
+	gearCmd.PersistentFlags().BoolVarP(&insecure, "insecure", "k", false, "Do not verify CA certificate on SSL connections and transfers")
 
 	deployCmd := &cobra.Command{
-		Use:   "deploy <file> <host>...",
+		Use:   "deploy <file|url> <host>...",
 		Short: "Deploy a set of containers to the named hosts",
 		Long:  "Given a simple description of a group of containers, wire them together using the gear primitives.",
 		Run:   deployContainers,
 	}
 	deployCmd.Flags().BoolVar(&isolate, "isolate", false, "Use an isolated container running as a user")
+	deployCmd.Flags().Int64VarP(&timeout, "timeout", "", 300, "Number of seconds to wait for HTTP/S server")
 	AddCommand(gearCmd, deployCmd, false)
 
 	installImageCmd := &cobra.Command{
@@ -130,12 +135,12 @@ func Execute() {
 	}
 	buildCmd.Flags().BoolVar(&(buildReq.Clean), "clean", false, "Perform a clean build")
 	buildCmd.Flags().StringVar(&(buildReq.WorkingDir), "dir", "tempdir", "Directory where generated Dockerfiles and other support scripts are created")
-	buildCmd.Flags().StringVarP(&(buildReq.Method), "method", "m", "run", "Specify a method to build with. build -> 'docker build', run -> 'docker run'")
 	buildCmd.Flags().StringVarP(&(buildReq.Ref), "ref", "r", "", "Specify a ref to check-out")
 	buildCmd.Flags().BoolVar(&(buildReq.Verbose), "verbose", false, "Enable verbose output")
 	buildCmd.Flags().StringVar(&(buildReq.CallbackUrl), "callbackUrl", "", "Specify a URL to invoke via HTTP POST upon build completion")
 	buildCmd.Flags().StringVar(&environment.Path, "env-file", "", "Path to an environment file to load")
 	buildCmd.Flags().StringVar(&environment.Description.Source, "env-url", "", "A url to download environment files from")
+	buildCmd.Flags().StringVarP(&(buildReq.ScriptsUrl), "scripts", "s", "", "Specify a URL for the assemble and run scripts")
 	AddCommand(gearCmd, buildCmd, false)
 
 	setEnvCmd := &cobra.Command{
@@ -260,19 +265,37 @@ func purge(cmd *cobra.Command, args []string) {
 
 func deployContainers(cmd *cobra.Command, args []string) {
 	if len(args) < 1 {
-		Fail(1, "Valid arguments: <deployment_file> <host> ...")
+		Fail(1, "Valid arguments: <deployment_file|URL> <host> ...")
 	}
 
 	t := defaultTransport.Get()
 
 	path := args[0]
 	if path == "" {
-		Fail(1, "Argument 1 must be deployment file describing how the containers are related")
+		Fail(1, "Argument 1 must be deployment file or URL describing how the containers are related")
 	}
-	deploy, err := deployment.NewDeploymentFromFile(path)
-	if err != nil {
-		Fail(1, "Unable to load deployment file: %s", err.Error())
+
+	u, err := url.Parse(path)
+	if nil != err {
+		Fail(1, "Cannot Parse Argument 1: %s", err.Error())
 	}
+
+	var deploy *deployment.Deployment
+	switch u.Scheme {
+	case "":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "file":
+		deploy, err = deployment.NewDeploymentFromFile(u.Path)
+	case "http", "https":
+		deploy, err = deployment.NewDeploymentFromURL(u.String(), insecure, time.Duration(timeout))
+	default:
+		Fail(1, "Unsupported URL Scheme '%s' for deployment", u.Scheme)
+	}
+
+	if nil != err {
+		Fail(1, "Unable to load deployment from %s: %s", path, err.Error())
+	}
+
 	if len(args) == 1 {
 		args = append(args, transport.Local.String())
 	}
@@ -466,6 +489,13 @@ func buildImage(cmd *cobra.Command, args []string) {
 
 	if len(args) < 3 {
 		Fail(1, "Valid arguments: <source> <build image> <tag> ...")
+	}
+
+	if buildReq.CallbackUrl != "" {
+		_, err := url.ParseRequestURI(buildReq.CallbackUrl)
+		if err != nil {
+			Fail(1, "The callbackUrl was an invalid URL")
+		}
 	}
 
 	buildReq.Source = args[0]

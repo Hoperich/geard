@@ -53,13 +53,19 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 	defer conn.Unsubscribe()
 
 	// make subscription global for efficiency
-	changes, errch := conn.SubscribeUnitsCustom(1*time.Second, 2,
-		func(s1 *dbus.UnitStatus, s2 *dbus.UnitStatus) bool {
-			return true
-		},
-		func(unit string) bool {
-			return unit != unitName
-		})
+	var (
+		changes <-chan map[string]*dbus.UnitStatus
+		errch   <-chan error
+	)
+	if resp.StreamResult() {
+		changes, errch = conn.SubscribeUnitsCustom(1*time.Second, 2,
+			func(s1 *dbus.UnitStatus, s2 *dbus.UnitStatus) bool {
+				return true
+			},
+			func(unit string) bool {
+				return unit != unitName
+			})
+	}
 
 	fmt.Fprintf(w, "Running sti build unit: %s\n", unitName)
 	log.Printf("build_image: Running build %s", unitName)
@@ -95,6 +101,10 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 		startCmd = append(startCmd, "--debug")
 	}
 
+	if j.CallbackUrl != "" {
+		startCmd = append(startCmd, "--callbackUrl="+j.CallbackUrl)
+	}
+
 	log.Printf("build_image: Will execute %v", startCmd)
 	status, err := systemd.Connection().StartTransientUnit(
 		unitName,
@@ -115,25 +125,24 @@ func (j *BuildImageRequest) Execute(resp jobs.Response) {
 		fmt.Fprintf(w, "Sti build is running\n")
 	}
 
-	go io.Copy(w, stdout)
-
-wait:
-	for {
-		select {
-		case c := <-changes:
-			if changed, ok := c[unitName]; ok {
-				if changed.SubState != "running" {
-					fmt.Fprintf(w, "Build completed\n")
-					break wait
+	if resp.StreamResult() {
+		go io.Copy(w, stdout)
+	wait:
+		for {
+			select {
+			case c := <-changes:
+				if changed, ok := c[unitName]; ok {
+					if changed.SubState != "running" {
+						fmt.Fprintf(w, "Build completed\n")
+						break wait
+					}
 				}
+			case err := <-errch:
+				fmt.Fprintf(w, "Error %+v\n", err)
+			case <-time.After(25 * time.Second):
+				log.Print("job_build_image:", "timeout")
+				break wait
 			}
-		case err := <-errch:
-			fmt.Fprintf(w, "Error %+v\n", err)
-		case <-time.After(25 * time.Second):
-			log.Print("job_build_image:", "timeout")
-			break wait
 		}
 	}
-
-	stdout.Close()
 }

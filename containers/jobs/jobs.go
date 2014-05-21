@@ -6,6 +6,7 @@ package jobs
 
 import (
 	"errors"
+	"net/url"
 
 	"github.com/openshift/geard/containers"
 	"github.com/openshift/geard/jobs"
@@ -133,6 +134,7 @@ type BuildImageRequest struct {
 	RuntimeImage string
 	Clean        bool
 	Verbose      bool
+	CallbackUrl  string
 }
 
 func (e *BuildImageRequest) Check() error {
@@ -144,6 +146,12 @@ func (e *BuildImageRequest) Check() error {
 	}
 	if e.Source == "" {
 		return errors.New("A source input is required to start a build")
+	}
+	if e.CallbackUrl != "" {
+		_, err := url.ParseRequestURI(e.CallbackUrl)
+		if err != nil {
+			return errors.New("The callbackUrl was an invalid URL")
+		}
 	}
 	return nil
 }

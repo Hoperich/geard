@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -114,15 +115,25 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 			return
 		}
 
-		// setup a response object
+		// determine the type of the request
+		acceptHeader := r.Header.Get("Accept")
+		overrideAcceptHeader := r.Header.Get("X-Accept")
+		if overrideAcceptHeader != "" {
+			acceptHeader = overrideAcceptHeader
+		}
+
+		// setup the appropriate mode
 		mode := ResponseJson
-		if r.Header.Get("Accept") == "text/plain" {
+		if acceptHeader == "text/plain" {
 			mode = ResponseTable
 		}
-		canStream := true
+
+		// is this a streaming response?
+		canStream := didClientRequestStreamableResponse(acceptHeader)
 		if streaming, ok := job.(HttpStreamable); ok {
 			canStream = streaming.Streamable()
 		}
+
 		response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
 
 		// queue / handle the request
@@ -136,6 +147,19 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		}
 		<-wait
 	}
+}
+
+func didClientRequestStreamableResponse(acceptHeader string) bool {
+	result := false
+	mediaTypes := strings.Split(acceptHeader, ",")
+	for i := range mediaTypes {
+		mediaType, params, _ := mime.ParseMediaType(mediaTypes[i])
+		result = (params["stream"] == "true") && (mediaType == "application/json" || mediaType == "text/plain")
+		if result {
+			break
+		}
+	}
+	return result
 }
 
 func limitedBodyReader(r *rest.Request) io.Reader {
