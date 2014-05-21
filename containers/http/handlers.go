@@ -211,6 +211,7 @@ type HttpContainerStatusRequest struct {
 }
 
 func (h *HttpContainerStatusRequest) HttpMethod() string { return "GET" }
+func (h *HttpContainerStatusRequest) Streamable() bool   { return true }
 func (h *HttpContainerStatusRequest) HttpPath() string {
 	return http.Inline("/container/:id/status", string(h.Id))
 }

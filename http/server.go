@@ -127,13 +127,7 @@ func (conf *HttpConfiguration) handleWithMethod(method JobHandler) func(*rest.Re
 		if acceptHeader == "text/plain" {
 			mode = ResponseTable
 		}
-
-		// is this a streaming response?
 		canStream := didClientRequestStreamableResponse(acceptHeader)
-		if streaming, ok := job.(HttpStreamable); ok {
-			canStream = streaming.Streamable()
-		}
-
 		response := NewHttpJobResponse(w.ResponseWriter, !canStream, mode)
 
 		// queue / handle the request

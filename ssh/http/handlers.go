@@ -35,7 +35,6 @@ type HttpCreateKeysRequest struct {
 
 func (h *HttpCreateKeysRequest) HttpMethod() string { return "PUT" }
 func (h *HttpCreateKeysRequest) HttpPath() string   { return "/keys" }
-func (h *HttpCreateKeysRequest) Streamable() bool   { return false }
 func (h *HttpCreateKeysRequest) Handler(conf *http.HttpConfiguration) http.JobHandler {
 	return func(context *jobs.JobContext, r *rest.Request) (interface{}, error) {
 		data := sshjobs.ExtendedCreateKeysData{}
